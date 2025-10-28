@@ -1,0 +1,17 @@
+﻿fastapi
+uvicorn[standard]
+pydantic>=2
+transformers>=4.44
+accelerate
+bitsandbytes
+huggingface_hub
+hf-transfer
+diffusers>=0.30
+xformers
+piper-tts
+openai-whisper
+numpy
+soundfile
+tqdm
+python-dotenv
+Pillow
