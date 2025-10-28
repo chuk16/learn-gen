@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+*.eggs/
+*.log
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# common noisy stuff — edit as needed
+node_modules/
+build/
+dist/
+coverage/
+*.log
+*.tmp
+*.swp
+.DS_Store
+.env
+.env.*
