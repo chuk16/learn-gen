@@ -1,38 +1,90 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.pyc
-*.pdb
-*.egg-info/
-*.eggs/
-*.log
-
-# Virtual environments
-.venv/
-env/
-venv/
-
-# VS Code
-.vscode/
-
-# OS
+# ---------------------------
+# OS & Editor
+# ---------------------------
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*.orig
+*.tmp
+*.bak
+.logs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
 
-# Environment files
+# ---------------------------
+# Env / Secrets
+# ---------------------------
 .env
 .env.*
+!.env.example
+*.pem
+*.key
+*.crt
 
-# common noisy stuff — edit as needed
+# ---------------------------
+# Node / Next.js
+# ---------------------------
 node_modules/
+.next/
+out/
+.vercel/
+.next-cache/
+# Storybook (if used)
+storybook-static/
+.storybook-out/
+
+# Test / Coverage
+coverage/
+lcov.info
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Lockfiles — keep PNPM, ignore others
+package-lock.json
+yarn.lock
+
+# ---------------------------
+# TypeScript / Build
+# ---------------------------
+*.tsbuildinfo
+
+# ---------------------------
+# Python (if you run scripts/tools)
+# ---------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.conda/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+coverage.xml
 build/
 dist/
-coverage/
-*.log
-*.tmp
-*.swp
-.DS_Store
-.env
-.env.*
+*.egg-info/
+.eggs/
+
+# ---------------------------
+# App-specific caches / temp
+# ---------------------------
+tmp/
+cache/
+.sass-cache/
+
+# ---------------------------
+# Project data/assets (optional)
+# If 'assets' or 'data' contain generated files, uncomment:
+# assets/build/
+# data/cache/

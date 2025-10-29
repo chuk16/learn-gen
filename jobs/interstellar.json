@@ -1,0 +1,19 @@
+{
+  "topic": "Interstellar — plot & science (1-minute portrait)",
+  "length": { "unit": "min", "value": 1 },
+  "research": { "web_search": true },
+  "visuals": {
+    "use_generated_images": "none",
+    "style": "minimal-3D|flat-vector",
+    "fps": 30,
+    "animation_mode": "cinematic",
+    "aspect": "portrait",
+    "target_height": 1920
+  },
+  "voice": {
+    "speaker": "/workspace/learn-gen/voices/piper/en_US-lessac-high.onnx",
+    "pace_wpm": 155,
+    "tone": "energetic"
+  },
+  "structure": { "beats_per_min": 10, "cta": false, "quizlets": 0 }
+}
