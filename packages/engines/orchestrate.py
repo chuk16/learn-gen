@@ -23,10 +23,6 @@ def _dims(aspect: str, target_height: int) -> Tuple[int, int]:
 
 
 def _compose_narration(plan: dict) -> str:
-    """
-    Fallback composer if plan['narration_full'] is missing.
-    Joins beat narrations and adds light section headers.
-    """
     parts = []
     topic = plan.get("topic") or ""
     if topic:
@@ -40,7 +36,6 @@ def _compose_narration(plan: dict) -> str:
             if n:
                 parts.append(n)
     text = " ".join(parts).strip()
-    # ensure non-empty string for TTS
     return text or "Here is a short explainer."
 
 
@@ -56,35 +51,42 @@ async def run(cfg):
     W, H = _dims(aspect, target_h)
     FPS = getattr(cfg.visuals, "fps", 30)
 
-    # 1) Voice + captions first (know total duration)
+    # 1) Voice + captions first
     narration = plan.get("narration_full") or _compose_narration(plan)
     wav = tts.synthesize(narration, cfg.voice.speaker)
     dur_s = sf.info(wav).duration if os.path.exists(wav) else (cfg.length.value * 60)
     srt = captions.to_srt(wav)
 
-    # 2) Build animations per beat (even allocation for now)
+    # 2) Build animations per beat
     flattened = _flatten_beats(plan)
     n = max(1, len(flattened))
     per = max(4.0, dur_s / n)
 
     clips = []
-    for sec, b in flattened:
-        btype = b.get("type")
-        ons = b.get("onscreen", {}) or {}
-        title = ons.get("title") or sec.get("id") or cfg.topic
-        bullets = ons.get("bullets", [])
-        spec = {"kind": "diagram"}
-        if btype == "timeline":
-            spec = {"kind": "timeline", "items": bullets or ["Act I", "Act II", "Act III"]}
-        elif btype == "anim_path":
-            spec = {"kind": "path", "anim_path": ons.get("anim_path", {"duration": per})}
-        elif btype == "diagram":
-            spec = {"kind": "diagram", "title": title}
-        # layout -> diagram fallback with title/bullets
-        clip = anim.render(spec, per, title, bullets, width=W, height=H, fps=FPS)
+    if flattened:
+        for sec, b in flattened:
+            btype = b.get("type")
+            ons = b.get("onscreen", {}) or {}
+            title = ons.get("title") or sec.get("id") or cfg.topic
+            bullets = ons.get("bullets", [])
+            spec = {"kind": "diagram"}
+            if btype == "timeline":
+                spec = {"kind": "timeline", "items": bullets or ["Act I", "Act II", "Act III"]}
+            elif btype == "anim_path":
+                spec = {"kind": "path", "anim_path": ons.get("anim_path", {"duration": per})}
+            elif btype == "diagram":
+                spec = {"kind": "diagram", "title": title}
+            # layout -> diagram fallback with title/bullets
+            clip = anim.render(spec, per, title, bullets, width=W, height=H, fps=FPS)
+            clips.append(clip)
+    else:
+        # Fallback: single title/diagram clip covering the whole narration duration
+        title = (plan.get("topic") or cfg.topic)
+        spec = {"kind": "diagram", "title": title}
+        clip = anim.render(spec, max(6.0, dur_s), title, [], width=W, height=H, fps=FPS)
         clips.append(clip)
 
-    # 3) Compose final (concat → add VO + subs)
+    # 3) Compose final (concat → add VO + subs) -- compose will also guard empty lists
     out_name = f"{cfg.topic[:48].replace(' ', '_')}.mp4"
     mp4 = render.compose(clips, wav, srt, fps=FPS, out_name=out_name)
 
