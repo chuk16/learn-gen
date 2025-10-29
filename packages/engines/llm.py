@@ -3,19 +3,23 @@ import re
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# Pick a model sized for your environment
-MODEL = "Qwen/Qwen2.5-1.5B-Instruct"   # safer on CPU; switch back to 7B on GPU if you like
+# Pick a model sized for your environment.
+# On CPU/smaller GPUs, 1.5B is comfy; switch to 7B on a 24GB GPU if you want.
+MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 
 _tok = None
 _mdl = None
 
+
 def _safe_device_kwargs():
+    """Avoid 4-bit/bitsandbytes on CPU/Windows. Use FP16 on CUDA, FP32 on CPU."""
     use_cuda = torch.cuda.is_available()
     return {
         "device_map": "auto" if use_cuda else "cpu",
         "torch_dtype": torch.float16 if use_cuda else torch.float32,
         "low_cpu_mem_usage": True,
     }
+
 
 def _load():
     global _tok, _mdl
@@ -78,13 +82,20 @@ TEMPLATE_NO_CTX = (
 )
 
 
+# ---------------------- (Optional) RAG / web search ----------------------
+
 def _maybe_build_context(topic, cfg):
-    """Optional web-search context (Google CSE if configured, else Wikipedia)."""
+    """
+    If cfg.research.web_search is True, gather context snippets (Google CSE if configured, else Wikipedia)
+    and return: { "context": "<joined chunks with [S#]>", "sources": [{id,title,url}, ...] }.
+    Else return None.
+    """
     try:
         if not getattr(cfg.research, "web_search", False):
             return None
     except Exception:
         return None
+
     try:
         from . import research
     except Exception:
@@ -100,30 +111,34 @@ def _maybe_build_context(topic, cfg):
     return {"context": ctx, "sources": bundle.get("sources", [])}
 
 
+def _escape_braces(s: str) -> str:
+    """Make any JSON/HTML braces in context safe for str.format."""
+    return s.replace("{", "{{").replace("}", "}}")
+
+
 def _draft_plan(topic, beats, words, cfg, tok, mdl, context_block=None):
     sys_msg = SYS
     if context_block:
-        user = TEMPLATE_WITH_CTX.format(topic=topic, beats=beats, words=words, context=context_block["context"])
+        safe_ctx = _escape_braces(context_block["context"])
+        user = TEMPLATE_WITH_CTX.format(topic=topic, beats=beats, words=words, context=safe_ctx)
     else:
         user = TEMPLATE_NO_CTX.format(topic=topic, beats=beats, words=words)
 
-    # Compose chat
     prompt = tok.apply_chat_template(
         [{"role": "system", "content": sys_msg}, {"role": "user", "content": user}],
         tokenize=False,
     )
 
-    # Generation settings tuned for JSON determinism
+    # Generation tuned for JSON determinism
     inputs = tok(prompt, return_tensors="pt").to(mdl.device)
     out = mdl.generate(
         **inputs,
         max_new_tokens=1000,
-        temperature=0.2,       # lower = more deterministic
-        do_sample=False,       # greedy; better JSON compliance
+        temperature=0.2,   # low temp
+        do_sample=False,   # greedy
         eos_token_id=tok.eos_token_id,
     )
-    text = tok.decode(out[0], skip_special_tokens=True)
-    return text
+    return tok.decode(out[0], skip_special_tokens=True)
 
 
 # ---------------------- JSON repair helpers ----------------------
@@ -136,13 +151,14 @@ def _find_json_span(s: str) -> str | None:
         return None
     return s[start : end + 1]
 
+
 def _light_repair(s: str) -> str:
-    """Common fixes: smart quotes -> ascii, stray code fences, dangling commas."""
+    """Common fixes: smart quotes -> ascii, remove code fences, fix trailing commas."""
     s = s.replace("\u201c", '"').replace("\u201d", '"').replace("\u2019", "'")
     s = s.replace("```json", "").replace("```", "")
-    # Remove trailing commas before ] or }
-    s = re.sub(r",(\s*[\]\}])", r"\1", s)
+    s = re.sub(r",(\s*[\]\}])", r"\1", s)  # trailing commas
     return s
+
 
 def _extract_json(text: str) -> dict:
     raw = _find_json_span(text)
@@ -167,16 +183,13 @@ def produce_plan(topic, beats, words, cfg):
     try:
         plan = _extract_json(txt)
     except Exception:
-        # Try one more time with a stricter reminder
+        # Retry with a stricter reminder if the first parse fails
         reminder = (
             "Return ONLY the JSON object. No extra text. "
             "If you added anything else, remove it and output just the JSON."
         )
         strict_prompt = tok.apply_chat_template(
-            [
-                {"role": "system", "content": SYS},
-                {"role": "user", "content": reminder},
-            ],
+            [{"role": "system", "content": SYS}, {"role": "user", "content": reminder}],
             tokenize=False,
         )
         out2 = mdl.generate(
