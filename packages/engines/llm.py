@@ -97,3 +97,32 @@ def produce_plan(topic, beats, words, cfg):
 
     out = mdl.generate(
         **inputs,
+        max_new_tokens=1400,
+        temperature=0.7,
+        do_sample=True,
+        pad_token_id=tok.eos_token_id,
+        eos_token_id=tok.eos_token_id,
+    )
+
+    txt = tok.decode(out[0], skip_special_tokens=True)
+
+    # Extract JSON block robustly
+    plan = _extract_json_block(txt)
+
+    # Ensure required fields / inject defaults
+    # (length_min is derived from cfg.length.value when present)
+    try:
+        length_min = getattr(cfg.length, "value", None)
+    except Exception:
+        length_min = None
+
+    if length_min is None:
+        # fallback: compute from beats/words roughly (optional)
+        length_min = max(1, int(round((words or 150) / 150.0)))
+
+    plan.setdefault("topic", topic)
+    plan["length_min"] = length_min
+    plan.setdefault("narration_full", "")
+    plan.setdefault("sections", [])
+
+    return plan
