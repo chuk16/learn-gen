@@ -3,33 +3,51 @@ from typing import List, Tuple
 from . import llm, tts, captions, anim, render
 import soundfile as sf
 
-def _flatten_beats(plan) -> List[dict]:
+
+def _flatten_beats(plan) -> List[tuple]:
     beats = []
-    for sec in plan["sections"]:
-        for b in sec["beats"]:
+    for sec in plan.get("sections", []):
+        for b in sec.get("beats", []):
             beats.append((sec, b))
     return beats
 
-def _dims(aspect: str, target_height: int) -> Tuple[int,int]:
-    """
-    Returns (W,H) given aspect & target_height (tall edge).
-    - landscape: 16:9 → (16/9 * H, H)
-    - portrait:  9:16 → (9/16 * H, H)
-    - square:    1:1  → (H, H)
-    Width is snapped to integer; H is exactly target_height.
-    """
+
+def _dims(aspect: str, target_height: int) -> Tuple[int, int]:
     if aspect == "portrait":
-        w = int(round(target_height * 9/16))
-        return (w, target_height)            # e.g., 1080x1920 → pass H=1920
+        w = int(round(target_height * 9 / 16))
+        return (w, target_height)
     if aspect == "square":
         return (target_height, target_height)
-    # landscape default
-    w = int(round(target_height * 16/9))
-    return (w, target_height)                # e.g., 1920x1080 → pass H=1080
+    w = int(round(target_height * 16 / 9))
+    return (w, target_height)
+
+
+def _compose_narration(plan: dict) -> str:
+    """
+    Fallback composer if plan['narration_full'] is missing.
+    Joins beat narrations and adds light section headers.
+    """
+    parts = []
+    topic = plan.get("topic") or ""
+    if topic:
+        parts.append(f"{topic}.")
+    for sec in plan.get("sections", []):
+        sec_id = sec.get("id")
+        if sec_id:
+            parts.append(sec_id.replace("_", " ").title() + ":")
+        for b in sec.get("beats", []):
+            n = (b.get("narration") or "").strip()
+            if n:
+                parts.append(n)
+    text = " ".join(parts).strip()
+    # ensure non-empty string for TTS
+    return text or "Here is a short explainer."
+
 
 async def run(cfg):
     words = cfg.length.value * cfg.voice.pace_wpm
     beats_target = cfg.length.value * cfg.structure.beats_per_min
+
     plan = llm.produce_plan(cfg.topic, beats_target, words, cfg)
 
     # --- dimensions & fps from config ---
@@ -39,7 +57,8 @@ async def run(cfg):
     FPS = getattr(cfg.visuals, "fps", 30)
 
     # 1) Voice + captions first (know total duration)
-    wav = tts.synthesize(plan["narration_full"], cfg.voice.speaker)
+    narration = plan.get("narration_full") or _compose_narration(plan)
+    wav = tts.synthesize(narration, cfg.voice.speaker)
     dur_s = sf.info(wav).duration if os.path.exists(wav) else (cfg.length.value * 60)
     srt = captions.to_srt(wav)
 
@@ -56,7 +75,7 @@ async def run(cfg):
         bullets = ons.get("bullets", [])
         spec = {"kind": "diagram"}
         if btype == "timeline":
-            spec = {"kind": "timeline", "items": bullets or ["Act I","Act II","Act III"]}
+            spec = {"kind": "timeline", "items": bullets or ["Act I", "Act II", "Act III"]}
         elif btype == "anim_path":
             spec = {"kind": "path", "anim_path": ons.get("anim_path", {"duration": per})}
         elif btype == "diagram":
@@ -66,7 +85,11 @@ async def run(cfg):
         clips.append(clip)
 
     # 3) Compose final (concat → add VO + subs)
-    out_name = f"{cfg.topic[:48].replace(' ','_')}.mp4"
+    out_name = f"{cfg.topic[:48].replace(' ', '_')}.mp4"
     mp4 = render.compose(clips, wav, srt, fps=FPS, out_name=out_name)
 
-    return {"plan": plan, "assets": {"clips": clips, "wav": wav, "srt": srt}, "final_mp4": mp4}
+    return {
+        "plan": plan,
+        "assets": {"clips": clips, "wav": wav, "srt": srt},
+        "final_mp4": mp4,
+    }
