@@ -11,7 +11,7 @@ class Research(BaseModel):
 
 class Visuals(BaseModel):
     # Animation-first defaults; SDXL only if truly needed
-    use_generated_images: Literal["auto","none","force"] = "none"
+    use_generated_images: Literal["auto","none","force"] = "auto"
     style: str = "kurzgesagt-flat-vector"
     fps: int = 30
     animation_mode: Literal["cinematic","infographic"] = "cinematic"

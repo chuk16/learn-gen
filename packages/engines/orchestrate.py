@@ -55,6 +55,29 @@ def _should_ignore_narration(narration: str) -> bool:
     return False
 
 
+def _image_mode(cfg) -> str:
+    try:
+        mode = getattr(cfg.visuals, "use_generated_images", "none")
+    except Exception:
+        return "none"
+    return mode or "none"
+
+
+def _build_image_prompt(topic: str, subject: str, references: List[str], narration: str) -> str:
+    parts = []
+    if subject:
+        parts.append(subject)
+    if references:
+        parts.append(", ".join(references[:4]))
+    if not parts and narration:
+        parts.append(narration[:140])
+    context = ". ".join(parts).strip()
+    base = "Vibrant Kurzgesagt flat vector illustration, clean gradients, 2.5D shapes, crisp outlines."
+    if context:
+        return f"{base} Focus on: {context}."
+    return base
+
+
 async def run(cfg):
     words = cfg.length.value * cfg.voice.pace_wpm
     beats_target = cfg.length.value * cfg.structure.beats_per_min
@@ -74,6 +97,20 @@ async def run(cfg):
     W, H = _dims(aspect, target_h)
     FPS = getattr(cfg.visuals, "fps", 30)
 
+    image_mode = _image_mode(cfg)
+    image_engine = None
+    image_pipe = None
+    if image_mode != "none":
+        try:
+            from . import images as image_module  # lazy import
+
+            image_pipe = image_module.get_pipe()
+            image_engine = image_module
+        except Exception:
+            image_mode = "none"
+            image_engine = None
+            image_pipe = None
+
     # 1) Voice + captions first
     narration_raw = (plan.get("narration_full") or "").strip()
     if _should_ignore_narration(narration_raw):
@@ -91,7 +128,7 @@ async def run(cfg):
 
     clips = []
     if flattened:
-        for sec, b in flattened:
+        for idx, (sec, b) in enumerate(flattened):
             btype = b.get("type")
             ons = b.get("onscreen", {}) or {}
             title = ons.get("title") or sec.get("id") or cfg.topic
@@ -100,6 +137,24 @@ async def run(cfg):
             subject = assets.get("subject") or title
             references = assets.get("reference_terms") or []
             spec_style = assets.get("style") or "kurzgesagt-flat-vector"
+            background_path = None
+            narration_snippet = (b.get("narration") or "").strip()
+            need_image = assets.get("need_image", False) or bool(subject or references)
+            if image_engine and (image_mode == "force" or need_image):
+                prompt = _build_image_prompt(cfg.topic, subject, references, narration_snippet)
+                try:
+                    size_px = max(W, H)
+                    bg_seed = abs(hash((cfg.topic, sec.get("id"), idx))) % 1_000_000
+                    background_path = image_engine.render(
+                        image_pipe,
+                        prompt,
+                        index=idx,
+                        size=min(1280, size_px),
+                        seed=bg_seed,
+                    )
+                except Exception:
+                    background_path = None
+
             spec = {"kind": "diagram"}
             if btype == "timeline":
                 spec = {"kind": "timeline", "items": bullets or ["Act I", "Act II", "Act III"]}
@@ -111,6 +166,8 @@ async def run(cfg):
             spec["subject"] = subject
             if references:
                 spec["references"] = references
+            if background_path:
+                spec["background_image"] = background_path
             # layout -> diagram fallback with title/bullets
             clip = anim.render(spec, per, title, bullets, width=W, height=H, fps=FPS)
             clips.append(clip)
@@ -118,6 +175,13 @@ async def run(cfg):
         # Fallback: single title/diagram clip covering the whole narration duration
         title = (plan.get("topic") or cfg.topic)
         spec = {"kind": "diagram", "title": title, "style": "kurzgesagt-flat-vector", "subject": title}
+        if image_engine and image_mode != "none":
+            try:
+                prompt = _build_image_prompt(cfg.topic, title, [], narration)
+                background_path = image_engine.render(image_pipe, prompt, index=0, size=min(1280, max(W, H)), seed=42)
+                spec["background_image"] = background_path
+            except Exception:
+                pass
         clip = anim.render(spec, max(6.0, dur_s), title, [], width=W, height=H, fps=FPS)
         clips.append(clip)
 

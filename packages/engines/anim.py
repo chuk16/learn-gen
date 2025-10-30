@@ -9,7 +9,7 @@ import subprocess
 import uuid
 from typing import List, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 ANIM_OUT = "data/anims"
 FPS_DEFAULT = 30
@@ -20,6 +20,11 @@ try:
     _ = ImageFont.truetype(FONT_PATH, 36)
 except Exception:
     FONT_PATH = None
+
+try:
+    RESAMPLE_LANCZOS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
+except AttributeError:
+    RESAMPLE_LANCZOS = Image.LANCZOS
 
 # High-saturation palettes inspired by Kurzgesagt color design
 PALETTES = (
@@ -126,6 +131,20 @@ def _build_background(width: int, height: int, palette: dict, rng: random.Random
     grain = grain.filter(ImageFilter.GaussianBlur(radius=1))
 
     return Image.alpha_composite(combined, grain)
+
+
+def _apply_background_image(base: Image.Image, width: int, height: int, palette: dict, path: Optional[str]) -> Image.Image:
+    if not path:
+        return base
+    try:
+        bg = Image.open(path).convert("RGBA")
+        bg = ImageOps.fit(bg, (width, height), method=RESAMPLE_LANCZOS)
+        tint = Image.new("RGBA", (width, height), palette["bg"][0] + (70,))
+        bg = Image.alpha_composite(bg, tint)
+        merged = Image.blend(bg, base, alpha=0.4)
+        return merged
+    except Exception:
+        return base
 
 
 def _make_star_field(width: int, height: int, rng: random.Random, palette: dict) -> Image.Image:
@@ -474,6 +493,7 @@ def render(
     seed_value = int(hashlib.sha1(seed_key.encode("utf-8")).hexdigest(), 16)
     palette = _palette_for(seed_key)
     background = _build_background(width, height, palette, random.Random(seed_value ^ 0x1234))
+    background = _apply_background_image(background, width, height, palette, spec.get("background_image"))
 
     if kind == "timeline":
         items = spec.get("items", ["Act I", "Act II", "Act III"])

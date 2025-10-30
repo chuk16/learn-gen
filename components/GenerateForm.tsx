@@ -121,7 +121,7 @@ export default function GenerateForm({
         sources: [] as string[]
       },
       visuals: {
-        use_generated_images: "none",
+        use_generated_images: "auto",
         style: "kurzgesagt-flat-vector",
         fps: 30,
         animation_mode: "cinematic",
