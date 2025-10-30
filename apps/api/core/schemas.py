@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel
+from pydantic import BaseModel
 from typing import List, Literal, Optional, Dict, Any
 
 class Length(BaseModel):
@@ -12,18 +12,18 @@ class Research(BaseModel):
 class Visuals(BaseModel):
     # Animation-first defaults; SDXL only if truly needed
     use_generated_images: Literal["auto","none","force"] = "none"
-    style: str = "minimal-3D|flat-vector"
+    style: str = "kurzgesagt-flat-vector"
     fps: int = 30
     animation_mode: Literal["cinematic","infographic"] = "cinematic"
 
     # NEW: output format controls
     aspect: Literal["landscape","portrait","square"] = "landscape"
     # Height in pixels (the tall edge); width is derived from aspect
-    target_height: int = 1080   # 1080p → 1920x1080 (landscape) or 1080x1920 (portrait)
+    target_height: int = 1080   # 1080p ? 1920x1080 (landscape) or 1080x1920 (portrait)
 
 class Voice(BaseModel):
     # Pass an absolute path to Piper .onnx in the request or set it here
-    speaker: str = "PIPER_MODEL_PATH_HERE.onnx"
+    speaker: str = "/workspace/learn-gen/voices/piper/en_US-norman-medium.onnx"
     pace_wpm: int = 145
     tone: str = "energetic"
 
@@ -46,7 +46,7 @@ class Onscreen(BaseModel):
     bullets: List[str] = []
     diagram: Optional[Dict[str, Any]] = None    # e.g., {"kind":"timeline"|"diagram"|"path", ...}
     anim_path: Optional[Dict[str, Any]] = None   # path parameters if any
-    assets: Dict[str, Any] = {"need_image": False, "style": "flat-vector"}
+    assets: Dict[str, Any] = {"need_image": False, "style": "kurzgesagt-flat-vector", "reference_terms": [], "subject": None}
 
 class Beat(BaseModel):
     type: Literal["layout","diagram","timeline","anim_path"]

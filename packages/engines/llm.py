@@ -33,7 +33,9 @@ def _load():
 SYS = (
     "YouOUTPUTSTRICTJSON. Return ONLY a single JSON object with the exact fields asked. "
     "No markdown, no code fences, no commentary. "
-    "Primary medium is procedural animation (timelines/diagrams/path); avoid photoreal faces."
+    "Primary medium is vibrant Kurzgesagt-inspired flat vector animation (timelines/diagrams/path). "
+    "Avoid photoreal faces and keep assets in a playful 2.5D style. "
+    "Populate onscreen.assets with style \"kurzgesagt-flat-vector\", optional subject keywords, and 2-4 reference_terms describing key visual traits gleaned from context."
 )
 
 JSON_SHAPE = """Your JSON MUST have:
@@ -54,7 +56,12 @@ JSON_SHAPE = """Your JSON MUST have:
             "bullets": string[],
             "diagram": object|null,
             "anim_path": object|null,
-            "assets": object
+            "assets": {
+              "need_image": boolean,
+              "style": string,
+              "subject": string|null,
+              "reference_terms": string[]
+            }
           },
           "duration_s": number
         }
@@ -62,7 +69,7 @@ JSON_SHAPE = """Your JSON MUST have:
     }
   ]
 }
-Constraints: max 2 sentences per beat; include a pattern break roughly every 15–20 seconds.
+Constraints: max 2 sentences per beat; include a pattern break roughly every 15-20 seconds. Always add reference_terms when distinctive visuals or characters should guide the animation.
 """
 
 

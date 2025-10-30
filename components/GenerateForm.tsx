@@ -52,7 +52,7 @@ const ASPECT_OPTIONS = [
 ] as const;
 
 const DEFAULTS = {
-  voicePath: "/workspace/learn-gen/voices/piper/en_US-lessac-high.onnx",
+  voicePath: "/workspace/learn-gen/voices/piper/en_US-norman-medium.onnx",
   portraitHeight: 1920,
   landscapeHeight: 1080
 };
@@ -122,7 +122,7 @@ export default function GenerateForm({
       },
       visuals: {
         use_generated_images: "none",
-        style: "minimal-3D|flat-vector",
+        style: "kurzgesagt-flat-vector",
         fps: 30,
         animation_mode: "cinematic",
         aspect: values.aspect,

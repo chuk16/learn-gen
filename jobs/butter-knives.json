@@ -4,16 +4,17 @@
   "research": { "web_search": true },
   "visuals": {
     "use_generated_images": "none",
-    "style": "minimal-3D|flat-vector",
+    "style": "kurzgesagt-flat-vector",
     "fps": 30,
     "animation_mode": "cinematic",
     "aspect": "portrait",
     "target_height": 1920
   },
   "voice": {
-    "speaker": "/workspace/learn-gen/voices/piper/en_US-lessac-high.onnx",
+    "speaker": "/workspace/learn-gen/voices/piper/en_US-norman-medium.onnx",
     "pace_wpm": 150,
     "tone": "friendly"
   },
   "structure": { "beats_per_min": 10, "cta": false, "quizlets": 0 }
 }
+
