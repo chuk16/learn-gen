@@ -72,6 +72,23 @@ def _font(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
+def _measure_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> Tuple[int, int]:
+    """Return text width/height across Pillow versions."""
+    if not text:
+        return 0, 0
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+    except AttributeError:
+        try:
+            bbox = font.getbbox(text)  # type: ignore[attr-defined]
+        except AttributeError:
+            try:
+                return font.getsize(text)  # type: ignore[attr-defined]
+            except AttributeError:
+                return draw.textsize(text, font=font)  # type: ignore[attr-defined]
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
 def _hex_to_rgb(value: str) -> Tuple[int, int, int]:
     value = value.lstrip("#")
     return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
@@ -165,7 +182,7 @@ def _draw_title(img: Image.Image, title: str, palette: dict) -> None:
         return
     draw = ImageDraw.Draw(img)
     font = _font(max(48, img.width // 18))
-    tw, th = draw.textsize(title, font=font)
+    tw, th = _measure_text(draw, title, font)
     x = (img.width - tw) // 2
     y = int(img.height * 0.08)
     draw.text((x + 4, y + 4), title, fill=palette["accent"], font=font)
@@ -212,7 +229,7 @@ def _draw_reference_badge(img: Image.Image, references: List[str], palette: dict
     text = " / ".join(references[:2])
     font = _font(max(20, img.width // 60))
     draw = ImageDraw.Draw(img)
-    tw, th = draw.textsize(text, font=font)
+    tw, th = _measure_text(draw, text, font)
     pad = int(img.height * 0.02)
     margin = int(img.width * 0.05)
     x0 = margin
@@ -296,16 +313,16 @@ def _render_timeline(
             pulse_layer = pulse_layer.filter(ImageFilter.GaussianBlur(radius=4))
             img = Image.alpha_composite(img, pulse_layer)
 
-            draw.ellipse((x - radius, line_y - radius, x + radius, line_y + radius), fill=base_color)
+        draw.ellipse((x - radius, line_y - radius, x + radius, line_y + radius), fill=base_color)
 
-            if frame_idx >= reveal:
-                label_font = _font(max(24, width // 46))
-                tw, th = draw.textsize(label, font=label_font)
-                rect = (
-                    x - tw // 2 - 16,
-                    line_y - radius - th - 20,
-                    x + tw // 2 + 16,
-                    line_y - radius - 12,
+        if frame_idx >= reveal:
+            label_font = _font(max(24, width // 46))
+            tw, th = _measure_text(draw, label, label_font)
+            rect = (
+                x - tw // 2 - 16,
+                line_y - radius - th - 20,
+                x + tw // 2 + 16,
+                line_y - radius - 12,
                 )
                 tag_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
                 tag_draw = ImageDraw.Draw(tag_layer)
