@@ -323,13 +323,13 @@ def _render_timeline(
                 line_y - radius - th - 20,
                 x + tw // 2 + 16,
                 line_y - radius - 12,
-                )
-                tag_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-                tag_draw = ImageDraw.Draw(tag_layer)
-                tag_draw.rounded_rectangle(rect, radius=14, fill=palette["primary"] + (235,))
-                tag_layer = tag_layer.filter(ImageFilter.GaussianBlur(radius=1))
-                img = Image.alpha_composite(img, tag_layer)
-                draw.text((x - tw // 2, rect[1] + 4), label, fill=palette["neutral"], font=label_font)
+            )
+            tag_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            tag_draw = ImageDraw.Draw(tag_layer)
+            tag_draw.rounded_rectangle(rect, radius=14, fill=palette["primary"] + (235,))
+            tag_layer = tag_layer.filter(ImageFilter.GaussianBlur(radius=1))
+            img = Image.alpha_composite(img, tag_layer)
+            draw.text((x - tw // 2, rect[1] + 4), label, fill=palette["neutral"], font=label_font)
 
         img = _draw_reference_badge(img, references, palette)
         frames.append(img.convert("RGB"))
