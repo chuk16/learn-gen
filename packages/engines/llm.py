@@ -137,7 +137,11 @@ def _draft_plan(topic, beats, words, cfg, tok, mdl, context_block=None):
         do_sample=False,   # greedy
         eos_token_id=tok.eos_token_id,
     )
-    return tok.decode(out[0], skip_special_tokens=True)
+    prompt_len = inputs["input_ids"].shape[-1]
+    generated = out[0][prompt_len:]
+    if generated.numel() == 0:
+        return ""
+    return tok.decode(generated, skip_special_tokens=True)
 
 
 # ---------------------- JSON repair helpers ----------------------
