@@ -1,11 +1,15 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import List, Tuple
-from . import llm, tts, captions, anim, render
+
 import soundfile as sf
 
+from . import anim, captions, llm, render, tts
+
 DEBUG_DIR = "data/debug"
+LOGGER = logging.getLogger(__name__)
 
 
 def _flatten_beats(plan) -> List[tuple]:
@@ -39,8 +43,7 @@ def _compose_narration(plan: dict) -> str:
             n = (b.get("narration") or "").strip()
             if n:
                 parts.append(n)
-    text = " ".join(parts).strip()
-    return text or "Here is a short explainer."
+    return " ".join(parts).strip()
 
 
 def _should_ignore_narration(narration: str) -> bool:
@@ -83,6 +86,12 @@ async def run(cfg):
     beats_target = cfg.length.value * cfg.structure.beats_per_min
 
     plan = llm.produce_plan(cfg.topic, beats_target, words, cfg)
+    LOGGER.info(
+        "Drafted plan for topic '%s' (%d sections, %d beats)",
+        cfg.topic,
+        len(plan.get("sections", [])),
+        sum(len(sec.get("beats", [])) for sec in plan.get("sections", [])),
+    )
 
     try:
         Path(DEBUG_DIR).mkdir(parents=True, exist_ok=True)
@@ -106,7 +115,8 @@ async def run(cfg):
 
             image_pipe = image_module.get_pipe()
             image_engine = image_module
-        except Exception:
+        except Exception as exc:
+            LOGGER.exception("Image engine unavailable; disabling generated visuals.")
             image_mode = "none"
             image_engine = None
             image_pipe = None
@@ -114,9 +124,16 @@ async def run(cfg):
     # 1) Voice + captions first
     narration_raw = (plan.get("narration_full") or "").strip()
     if _should_ignore_narration(narration_raw):
-        narration = _compose_narration(plan)
-    else:
-        narration = narration_raw
+        LOGGER.error(
+            "Narration from plan is invalid (topic=%s, words=%d).",
+            cfg.topic,
+            len(narration_raw.split()),
+        )
+        composed = _compose_narration(plan)
+        if composed:
+            LOGGER.error("Composed narration fallback generated %d words but fallback usage is disabled.", len(composed.split()))
+        raise ValueError("Narration invalid or too short; aborting render.")
+    narration = narration_raw
     wav = tts.synthesize(narration, cfg.voice.speaker)
     dur_s = sf.info(wav).duration if os.path.exists(wav) else (cfg.length.value * 60)
     srt = captions.to_srt(wav)
@@ -152,7 +169,14 @@ async def run(cfg):
                         size=min(1280, size_px),
                         seed=bg_seed,
                     )
-                except Exception:
+                    LOGGER.debug(
+                        "Generated background image for beat %d ('%s') via prompt '%s'.",
+                        idx,
+                        title,
+                        prompt,
+                    )
+                except Exception as exc:
+                    LOGGER.exception("Image generation failed for beat %d ('%s'); continuing without background.", idx, title)
                     background_path = None
 
             spec = {"kind": "diagram"}
